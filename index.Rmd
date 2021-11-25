@@ -114,4 +114,149 @@ heatmap(correlation_matrix, col=col, symm=TRUE)
 - The different kind of purchases such as Meat purchases/ Sweet purchases/ Fish purchases/ Fruit purchases tend to be positively correlated to one another.
 - There are negative correlations between having kids/ dependents at home and the amount or number of purchases.
 
+
+#### Drop Highly correlated variables  
+```{r message= FALSE, warning= FALSE,error=FALSE}
+drop=findCorrelation(correlation_matrix,cutoff=0.8)
+drop= c(drop)
+corrdf<-data.frame(correlation_matrix)
+col_drop<-corrdf%>%dplyr::select(drop)%>%colnames()
+df_regress<-df_regress%>%select(-col_drop)
+paste0("Columns dropped: ", col_drop)  
+```
+  
+  
+#### Numeric labeling: Convert to numerical representation
+```{r message= FALSE, warning= FALSE,error=FALSE}
+#retrieve all non-numeric columns and represent these factors as integers.
+library(tidyverse)
+cat_var<-df_regress%>%select_if(negate(is.numeric))%>%colnames()
+paste0("Categorical Variables : ", cat_var)
+## [1] "Education"      "Marital_Status" "Country"
+
+df_regress$Education1<-as.integer(factor(df_regress$Education))
+df_regress%>%distinct(Education,Education1)
+
+df_regress$Marital_Status1<-as.integer(factor(df_regress$Marital_Status))
+df_regress%>%distinct(Marital_Status,Marital_Status1)
+
+df_regress$Country1<-as.integer(factor(df_regress$Country))
+df_regress%>%distinct(Country,Country1)
+
+df_regress1<-df_regress%>%select(-Education,-Marital_Status,-Country,-Num_campaigns_Accepted,-Num_dependents)  
+```
+  
+  
+#### Split data into training (70%) & test datasets (30%)
+```{r message= FALSE, warning= FALSE,error=FALSE,echo=FALSE}
+library(caTools)
+set.seed(123)
+df_regress1$spl<-sample.split(df_regress1$NumStorePurchases,SplitRatio = 0.7)
+train_df<-df_regress1%>%filter(spl==TRUE)%>%select(-spl)
+test_df<-df_regress1%>%filter(spl==FALSE)%>%select(-spl)
+paste0("Number of rows in train dataset: ",nrow(train_df))
+paste0("Number of rows in test dataset: ",nrow(test_df))
+```
+  
+  
+#### Perform Linear Regression & Interpret Results
+  
+#### Regression Results
+```{r message= FALSE, warning= FALSE,error=FALSE,max.height='300px', echo=FALSE}
+m1<-lm(NumStorePurchases~.,data=train_df)
+summary(m1)
+```
+  
+  
+#### Plotting of all X-Variables' P-value
+```{r message= FALSE, warning= FALSE,error=FALSE,echo=FALSE}
+#Retrieve all the p-values
+pvaluedf<-data.frame(summary(m1)$coefficients[,c('Pr(>|t|)','Estimate')])
+colnames(pvaluedf)<-c('pvalue','coefficient')
+pvaluedf$variables<-rownames(pvaluedf)
+
+#Plot the variables and their significance 
+pvaluedf%>%ggplot(aes(x=reorder(variables,pvalue),y=pvalue))+
+  geom_col(fill="#666699")+
+  theme(axis.text.x=element_text(angle=90,hjust=1))+
+  geom_hline(yintercept=0.05,color="red")+
+  geom_text(aes(x=2,y=0.10),label="5%",color="red")+
+  scale_x_discrete(name="X-Variables")+
+  ggtitle("X-Variables and their P-Values")
+
+
+```
+  
+#### The table below shows the top 5 significant X-variables for NumStorePurchase
+```{r message= FALSE, warning= FALSE,error=FALSE, echo=FALSE}
+#Top 5 significant variables based on p-values (significance level at 5%) 
+pvaluedf%>%arrange(pvalue)%>%select(pvalue,coefficient)%>%slice(1:6)
+
+#Calculate RMSE Value
+predictions<-predict(m1,test_df)
+paste0("RMSE: ",RMSE(predictions,test_df$NumStorePurchases))
+
+#R-square on training dataset
+paste0("R-square value on train dataset is: " ,round(summary(m1)$r.squared,digits=5))
+
+#Error Sum of Squares
+SSE<- sum((predictions-test_df$NumStorePurchases)^2)
+#Sum of Square Total
+SST<- sum((mean(train_df$NumStorePurchases)-test_df$NumStorePurchases)^2)
+#R-Square 
+r_square<-1-SSE/SST
+paste0("R-square value on test dataset is: ", round(r_square,5))
+
+```
+  
+#### Plot the 5 significant X-variables with the Y-variable
+```{r message= FALSE, warning= FALSE,error=FALSE,echo=FALSE}
+library(gtable)
+p1<-df_regress1%>%
+  select(NumStorePurchases, NumWebPurchases, NumWebVisitsMonth, NumDealsPurchases)%>%
+  gather(.,var,value,'NumWebPurchases':'NumDealsPurchases')%>%
+  group_by(NumStorePurchases,var)%>%
+  summarise_all(funs(mean))%>%
+  ggplot(aes(x=NumStorePurchases,y=value,fill=var))+
+  geom_col(position="dodge2")+ 
+  scale_x_continuous(n.breaks = 11)+
+  theme(legend.position="bottom",
+        plot.title = element_text(size = 10,face = "bold"),
+        text=element_text(size=9))+
+  scale_fill_brewer(palette = "Dark2")+
+  ggtitle("Mean number of X-variables and NumStorePurchases")
+
+p2<-df_regress1%>%
+  select(NumStorePurchases,MntWines)%>%
+  group_by(NumStorePurchases)%>%
+  summarise(MntWines=mean(MntWines))%>%
+  ggplot(aes(x=NumStorePurchases,y=MntWines))+
+  geom_col(fill="#666699",width=0.4)+
+  theme(legend.position="none")+
+  scale_x_continuous(n.breaks = 11)+
+  scale_y_continuous(label=scales::dollar)+
+  ggtitle("Mean amount of Wine Purchases and NumStorePurchases")+
+  theme(plot.title = element_text(size = 10,face = "bold"),
+        text=element_text(size=9))
+
+p3<-df_regress1%>%
+  ggplot(aes(x=factor(Kidhome),y=NumStorePurchases))+
+  geom_boxplot()+
+  scale_x_discrete(limits=c("0", "1","2"))+ 
+  xlab("Number of Kids")+
+  ggtitle("Number of kids and \n Mean NumStorePurchases")+
+  theme(plot.title = element_text(size = 10,face = "bold"),
+        text=element_text(size=9))
+
+grid.arrange(p2,p3,p1, ncol=2,widths=c(2,1),heights=c(1.5,2))
+```
+  
+#### Observation:
+- Amount spent on Wines increases as the Number of Store Purchases increases
+- Number of Web Purchases increases as the Number of Store Purchases increases
+- Number of Web Visits decreases as the Number of Store Purchases increases
+- Mean Number of Store Purchases decreases when there are kids
+- These observations suppors the regression model result which indicates positive coefficients for MntWines, NumWebPurchases and negative coefficients for KidHome and NumWebVisitsMonth
+  
+
 ---
