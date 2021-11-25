@@ -12,35 +12,91 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r library, include=FALSE}
-library(data.table)
+library(data.table); library(lubridate); library(tidyr); library(dplyr)
+library(ggplot2); library(gridExtra); library(cowplot)
 ```
 
 
-```{r load data, include=FALSE}
-dta <- fread("data/marketing_data.csv")
-head(dta[, .(ID, Year_Birth)], 30)
+```{r load_data, include=FALSE}
+#df <- fread("data/marketing_data.csv")
+df<- read.csv("data/marketing_data.csv")
 ```
 
-```{r data}
-head(dta[, .(ID, Year_Birth)], 30)
+```{r data_cleaning, echo=FALSE}
+#df[, Dt_Customer := as.Date(parse_date_time(Dt_Customer,"mdy"))]
+df$Dt_Customer<-as.Date(parse_date_time(df$Dt_Customer,"mdy"))
+#df[, Income := as.numeric(gsub("[$]|[,]", "", Income))]
+df$Income<-as.numeric(df$Income%>%gsub("[$,]","",.))
+#df <- df[Year_Birth < 1920]
+df<-mutate(df, Age=2020-df$Year_Birth)
+#paste0("Number of Datapoints removed for Age>100: ",count(df%>%filter(.,Age>100)))
+df <-df %>% filter(., Age<100)
+#summary(df$Age)
+df<-df%>%filter(.,!is.na(Income))
 ```
 
-## R Markdown
+## New Features
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+- Total Amount Spent = MntWines + MntFruits + MntMeatProducts + MntFishProducts + MntSweetProducts + MntGoldProds
+- Total Campaigns Accepted = AcceptedCmp1 +  AcceptedCmp2  + AcceptedCmp3 +  AcceptedCmp4 +  AcceptedCmp5
+- Total Number Of Purchases = NumDealsPurchases + NumCatalogPurchases + NumStorePurchases + NumWebPurchases
+- Number of Dependents = Kidhome +  Teenhome
+- Number of Years as Customers = 2020- Dt_Customer
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r new_features, echo=FALSE}
+df<-df%>%mutate(df,Total_amt_spent= MntWines+ MntFruits+ MntMeatProducts+ MntFishProducts+ MntSweetProducts+ MntGoldProds)
+print("Total_amt_spent")
+summary(df$Total_amt_spent)
 
-```{r cars}
-summary(cars)
+#Total Campaigns Accepted
+df<-df%>%mutate(df,Num_campaigns_Accepted= AcceptedCmp1+ AcceptedCmp2 +AcceptedCmp3+ AcceptedCmp4+ AcceptedCmp5)
+print('Num_campaigns_Accepted')
+summary(df$Num_campaigns_Accepted)
+
+#Total Number of Purchases
+df<-df%>%mutate(df,Num_purchases= NumDealsPurchases+ NumCatalogPurchases+ NumStorePurchases+ NumWebPurchases)
+print("Num_purchases")
+summary(df$Num_purchases)
+
+#Number of Dependents
+df<-df%>%mutate(df,Num_dependents= Kidhome+ Teenhome)
+print("Num_dependents")
+summary(df$Num_dependents)
+
+#Num_year joined if current year 2020
+df<-df%>%mutate(df, Num_years= 2020- year(Dt_Customer))
+print("Num_year_joined")
+summary(df$Num_years)
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+```{r message= FALSE, warning= FALSE,error=FALSE}
+df_regress<-df #%>%select(-ID,-Year_Birth,-Dt_Customer)
+```
+## Overview of the Y-Variable : Num Store Purchase
+```{r message= FALSE, warning= FALSE,error=FALSE}
+summary(df$NumStorePurchases)
+p1<-df_regress%>%ggplot(aes(NumStorePurchases))+
+  geom_histogram(fill="#666699")+
+  scale_x_continuous(n.breaks=13)+
+  ggtitle("Frequency of Number of Store Purchases")+
+  ylab("Frequency")  
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+p2<-df_regress%>%ggplot(aes(y=NumStorePurchases))+ 
+  geom_boxplot(fill="#666699")+ 
+  theme(axis.ticks.x=element_blank(),
+        axis.text.x = element_blank())
+
+grid.arrange(p1,p2,ncol=1)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Visualize Correlation
+```{r correlation, message= FALSE, warning= FALSE,error=FALSE}
+library(caret)
+df1<-select_if(df_regress,is.numeric)
+correlation_matrix<-cor(df1)
+
+#Visualise correlation in heatmap
+col<- colorRampPalette(c("blue", "white", "red"))(20)
+heatmap(correlation_matrix, col=col, symm=TRUE)   
+```
