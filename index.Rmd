@@ -20,6 +20,7 @@ library(ggplot2); library(gridExtra); library(cowplot)
 ```{r load_data, include=FALSE}
 #df <- fread("data/marketing_data.csv")
 df<- read.csv("data/marketing_data.csv")
+#head(as.data.table(df), 6)
 ```
 
 ```{r data_cleaning, echo=FALSE}
@@ -35,6 +36,12 @@ df <-df %>% filter(., Age<100)
 df<-df%>%filter(.,!is.na(Income))
 ```
 
+## Existing features
+
+`r names(df)`
+
+`r dim(df)[1]` rows and `r dim(df)[2]` columns
+
 ## New Features
 
 - Total Amount Spent = MntWines + MntFruits + MntMeatProducts + MntFishProducts + MntSweetProducts + MntGoldProds
@@ -45,28 +52,28 @@ df<-df%>%filter(.,!is.na(Income))
 
 ```{r new_features, echo=FALSE}
 df<-df%>%mutate(df,Total_amt_spent= MntWines+ MntFruits+ MntMeatProducts+ MntFishProducts+ MntSweetProducts+ MntGoldProds)
-print("Total_amt_spent")
-summary(df$Total_amt_spent)
+#print("Total_amt_spent")
+#summary(df$Total_amt_spent)
 
 #Total Campaigns Accepted
 df<-df%>%mutate(df,Num_campaigns_Accepted= AcceptedCmp1+ AcceptedCmp2 +AcceptedCmp3+ AcceptedCmp4+ AcceptedCmp5)
-print('Num_campaigns_Accepted')
-summary(df$Num_campaigns_Accepted)
+#print('Num_campaigns_Accepted')
+#summary(df$Num_campaigns_Accepted)
 
 #Total Number of Purchases
 df<-df%>%mutate(df,Num_purchases= NumDealsPurchases+ NumCatalogPurchases+ NumStorePurchases+ NumWebPurchases)
-print("Num_purchases")
-summary(df$Num_purchases)
+#print("Num_purchases")
+#summary(df$Num_purchases)
 
 #Number of Dependents
 df<-df%>%mutate(df,Num_dependents= Kidhome+ Teenhome)
-print("Num_dependents")
-summary(df$Num_dependents)
+#print("Num_dependents")
+#summary(df$Num_dependents)
 
 #Num_year joined if current year 2020
 df<-df%>%mutate(df, Num_years= 2020- year(Dt_Customer))
-print("Num_year_joined")
-summary(df$Num_years)
+#print("Num_year_joined")
+#summary(df$Num_years)
 ```
 
 
@@ -100,3 +107,11 @@ correlation_matrix<-cor(df1)
 col<- colorRampPalette(c("blue", "white", "red"))(20)
 heatmap(correlation_matrix, col=col, symm=TRUE)   
 ```
+
+
+- Highly positively correlated variables are in Red and Highly negatively correlated variables are in Blue.
+- We could see that income are positively correlated to Number of purchases and the amount of purchases.
+- The different kind of purchases such as Meat purchases/ Sweet purchases/ Fish purchases/ Fruit purchases tend to be positively correlated to one another.
+- There are negative correlations between having kids/ dependents at home and the amount or number of purchases.
+
+---
